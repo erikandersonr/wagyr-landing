@@ -445,9 +445,16 @@ export async function fetchKalshiEvents(params: {
   if (params.min_close_ts != null) searchParams.set("min_close_ts", String(params.min_close_ts))
 
   const url = `${KALSHI_API}/events?${searchParams.toString()}`
-  const res = await fetch(url, { cache: "no-store" })
-  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
-  return res.json() as Promise<KalshiEventsResponse>
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, { cache: "no-store" })
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
+      continue
+    }
+    if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+    return res.json() as Promise<KalshiEventsResponse>
+  }
+  throw new Error("Kalshi API error: 429 (rate limited after retries)")
 }
 
 /** Fetch markets for a given Kalshi category (e.g. Financials) by loading events and flattening nested markets. Paginates until we have enough or run out. */
