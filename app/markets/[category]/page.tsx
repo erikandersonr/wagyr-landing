@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useParams, notFound } from "next/navigation"
 import {
   Card,
@@ -145,6 +145,119 @@ function getMockMarkets(category: string, subcategory: string) {
     closeDate: "Apr 15, 2026",
     subcategory,
   }))
+}
+
+const COLLAPSED_COUNT = 4
+
+function MentionsEventCard({ evt }: { evt: MentionsEvent }) {
+  const [expanded, setExpanded] = useState(false)
+  const extraRef = useRef<HTMLDivElement>(null)
+  const [extraHeight, setExtraHeight] = useState(0)
+
+  // Measure the hidden content height for smooth animation
+  useEffect(() => {
+    if (extraRef.current) {
+      setExtraHeight(extraRef.current.scrollHeight)
+    }
+  }, [evt.markets])
+
+  const visibleMarkets = evt.markets.slice(0, COLLAPSED_COUNT)
+  const hiddenMarkets = evt.markets.slice(COLLAPSED_COUNT)
+  const hasMore = hiddenMarkets.length > 0
+
+  return (
+    <Card
+      className="border-0 transition-all duration-300 ease-in-out"
+      style={{
+        background: WAGYR_CARD,
+        boxShadow: expanded ? "0 0 0 1px rgba(0,212,170,0.25), 0 8px 24px rgba(0,0,0,0.3)" : "none",
+      }}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+      onClick={() => setExpanded((v) => !v)}
+    >
+      <CardHeader className="pb-2">
+        <CardDescription className="text-xs" style={{ color: WAGYR_MUTED }}>
+          Mentions · Closes {formatClose(evt.close_time)}
+        </CardDescription>
+        <CardTitle className="text-sm font-medium text-white">
+          {evt.title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {/* Always-visible markets */}
+        <div className="space-y-1.5">
+          {visibleMarkets.map((m) => (
+            <MarketRow key={m.ticker} m={m} expanded={expanded} />
+          ))}
+        </div>
+
+        {/* Expandable section */}
+        {hasMore && (
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ maxHeight: expanded ? extraHeight : 0, opacity: expanded ? 1 : 0 }}
+          >
+            <div ref={extraRef} className="space-y-1.5 pt-1.5">
+              {hiddenMarkets.map((m) => (
+                <MarketRow key={m.ticker} m={m} expanded={expanded} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div
+          className="flex items-center justify-between border-t pt-2 mt-3"
+          style={{ borderColor: WAGYR_BORDER }}
+        >
+          <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+            {formatVol(evt.total_volume)} vol
+          </span>
+          <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+            {hasMore && !expanded
+              ? `+${hiddenMarkets.length} more · `
+              : ""}
+            {evt.markets.length} markets
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function MarketRow({ m, expanded }: { m: KalshiMarket; expanded: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span
+        className="text-xs text-white/80 truncate"
+        style={{ maxWidth: expanded ? "45%" : "60%" }}
+      >
+        {m.yes_sub_title || m.subtitle || m.title}
+      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{ background: "rgba(0,212,170,0.2)", color: WAGYR_GREEN }}
+        >
+          {yesPercent(m)}%
+        </span>
+        {expanded && (
+          <>
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium text-white/70"
+              style={{ background: "rgba(255,255,255,0.1)" }}
+            >
+              {noPercent(m)}%
+            </span>
+            <span className="text-xs tabular-nums" style={{ color: WAGYR_MUTED, minWidth: "4rem", textAlign: "right" }}>
+              {formatVol(volume(m))}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function CategoryPage() {
@@ -303,57 +416,7 @@ export default function CategoryPage() {
                 </p>
               ) : (
                 mentionsEvents.map((evt) => (
-                  <Card
-                    key={evt.event_ticker}
-                    className="cursor-pointer border-0 transition-colors hover:opacity-95"
-                    style={{ background: WAGYR_CARD }}
-                  >
-                    <CardHeader className="pb-2">
-                      <CardDescription
-                        className="text-xs"
-                        style={{ color: WAGYR_MUTED }}
-                      >
-                        Mentions · Closes {formatClose(evt.close_time)}
-                      </CardDescription>
-                      <CardTitle className="text-sm font-medium text-white">
-                        {evt.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="mb-3 space-y-1.5">
-                        {evt.markets.slice(0, 4).map((m) => (
-                          <div
-                            key={m.ticker}
-                            className="flex items-center justify-between"
-                          >
-                            <span className="text-xs text-white/80 truncate mr-2" style={{ maxWidth: '60%' }}>
-                              {m.yes_sub_title || m.subtitle || m.title}
-                            </span>
-                            <span
-                              className="rounded-full px-2 py-0.5 text-xs font-medium shrink-0"
-                              style={{
-                                background: "rgba(0,212,170,0.2)",
-                                color: WAGYR_GREEN,
-                              }}
-                            >
-                              {yesPercent(m)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div
-                        className="flex items-center justify-between border-t pt-2"
-                        style={{ borderColor: WAGYR_BORDER }}
-                      >
-                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
-                          {formatVol(evt.total_volume)} vol
-                        </span>
-                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
-                          {evt.markets.length} markets
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <MentionsEventCard key={evt.event_ticker} evt={evt} />
                 ))
               )}
             </div>
