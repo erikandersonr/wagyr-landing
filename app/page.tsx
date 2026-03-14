@@ -30,6 +30,8 @@ import {
   themeFromSeries,
   volume,
   volume24h,
+  formatVol,
+  formatClose,
 } from "@/lib/kalshi"
 
 const WAGYR_BG = "#171b2c"
@@ -53,21 +55,6 @@ const MOCK_LEADERBOARD = [
   { rank: 4, name: "Casey", points: 765, correct: 10, total: 15, conviction: "High" },
   { rank: 5, name: "You", points: "—", correct: "—", total: 15, conviction: "Join a league" },
 ]
-
-function formatVol(v: number): string {
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`
-  return `$${Math.round(v)}`
-}
-
-function formatClose(closeTime: string): string {
-  try {
-    const d = new Date(closeTime)
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-  } catch {
-    return "—"
-  }
-}
 
 export default function Page() {
   const [markets, setMarkets] = useState<KalshiMarket[]>([])

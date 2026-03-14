@@ -68,15 +68,24 @@ export const KALSHI_SUBCATEGORIES: Record<
     { id: "rotten-tomatoes", label: "Rotten Tomatoes" },
   ],
   crypto: [
+    // By frequency
     { id: "all", label: "All markets" },
-    { id: "btc", label: "BTC" },
-    { id: "15-min", label: "15 min" },
+    { id: "15-min", label: "15 Minute" },
     { id: "hourly", label: "Hourly" },
+    { id: "daily", label: "Daily" },
+    { id: "weekly", label: "Weekly" },
+    { id: "monthly", label: "Monthly" },
+    { id: "annual", label: "Annual" },
+    { id: "one-time", label: "One Time" },
+    // By coin (separator rendered in UI)
+    { id: "---", label: "---" },
+    { id: "btc", label: "BTC" },
     { id: "eth", label: "ETH" },
     { id: "sol", label: "SOL" },
+    { id: "xrp", label: "XRP" },
     { id: "doge", label: "DOGE" },
     { id: "pre-market", label: "Pre-Market" },
-    { id: "xrp", label: "XRP" },
+    { id: "others", label: "Others" },
   ],
   climate: [
     { id: "all", label: "All markets" },
@@ -134,6 +143,52 @@ export const KALSHI_SUBCATEGORIES: Record<
   ],
 }
 
+/** Maps our category IDs to Kalshi's API category names (title case). */
+export const KALSHI_CATEGORY_API_NAMES: Record<Exclude<KalshiCategoryId, "home">, string> = {
+  politics: "Politics",
+  sports: "Sports",
+  culture: "Entertainment",
+  crypto: "Crypto",
+  climate: "Climate and Weather",
+  economics: "Economics",
+  mentions: "Mentions",
+  companies: "Companies",
+  financials: "Financials",
+  "tech-science": "Science and Technology",
+}
+
+/** Subcategories that filter by series frequency instead of ticker. */
+export const SUBCATEGORY_FREQUENCY_FILTERS: Partial<Record<string, Record<string, string>>> = {
+  crypto: {
+    "15-min": "fifteen_min",
+    hourly: "hourly",
+    daily: "daily",
+    weekly: "weekly",
+    monthly: "monthly",
+    annual: "annual",
+    "one-time": "one_off",
+  },
+}
+
+/** Ticker prefixes that identify pre-market series. */
+export const PRE_MARKET_PREFIXES = ["FDV", "AIRDROP", "TOKENLAUNCH", "NEWCOIN"]
+
+/** Ticker substrings that identify known coin series. */
+export const KNOWN_COIN_TICKERS = ["BTC", "ETH", "SOL", "XRP", "RIPPLE", "DOGE", "SHIBA"]
+
+export type KalshiSeries = {
+  ticker: string
+  title: string
+  category: string
+  frequency?: string
+  tags?: string[] | null
+}
+
+export type KalshiSeriesResponse = {
+  series: KalshiSeries[]
+  cursor: string
+}
+
 export type KalshiMarket = {
   ticker: string
   event_ticker: string
@@ -142,18 +197,28 @@ export type KalshiMarket = {
   yes_sub_title: string
   no_sub_title: string
   status: string
+  result: string
   market_type: string
+  strike_type: string
+  floor_strike: number | null
+  cap_strike: number | null
   yes_bid_dollars: string
   yes_ask_dollars: string
   no_bid_dollars: string
   no_ask_dollars: string
   last_price_dollars: string
   previous_yes_bid_dollars: string
+  previous_yes_ask_dollars: string
   previous_price_dollars: string
   volume_fp: string
   volume_24h_fp: string
+  open_interest_fp: string
+  open_time: string
   close_time: string
-  open_time?: string
+  expected_expiration_time: string
+  notional_value_dollars: string
+  rules_primary: string
+  rules_secondary: string
   series_ticker?: string
 }
 
@@ -166,14 +231,42 @@ export type KalshiEvent = {
   event_ticker: string
   series_ticker: string
   title: string
+  sub_title: string
   category?: string
   status: string
+  mutually_exclusive: boolean
+  strike_date?: string
+  available_on_brokers: boolean
   markets?: KalshiMarket[]
 }
 
 export type KalshiEventsResponse = {
   events: KalshiEvent[]
   cursor: string
+}
+
+export type KalshiOrderbook = {
+  yes: [string, string][]
+  no: [string, string][]
+}
+
+export type KalshiCandlestick = {
+  end_period_ts: number
+  yes_bid: { open_dollars: string; high_dollars: string; low_dollars: string; close_dollars: string }
+  yes_ask: { open_dollars: string; high_dollars: string; low_dollars: string; close_dollars: string }
+  price: { open_dollars: string | null; high_dollars: string | null; low_dollars: string | null; close_dollars: string | null; mean_dollars: string | null }
+  volume_fp: string
+  open_interest_fp: string
+}
+
+export type KalshiTrade = {
+  trade_id: string
+  ticker: string
+  count_fp: string
+  yes_price_dollars: string
+  no_price_dollars: string
+  taker_side: string
+  created_time: string
 }
 
 /** YES probability 0–100 from yes bid (dollars 0–1). */
@@ -203,6 +296,49 @@ export function volume(m: KalshiMarket): number {
 
 export function volume24h(m: KalshiMarket): number {
   return parseFloat(m.volume_24h_fp ?? "0") || 0
+}
+
+/** Open interest as number. */
+export function openInterest(m: KalshiMarket): number {
+  return parseFloat(m.open_interest_fp ?? "0") || 0
+}
+
+/** Bid-ask spread in dollars. */
+export function spreadDollars(m: KalshiMarket): number {
+  const bid = parseFloat(m.yes_bid_dollars ?? "0")
+  const ask = parseFloat(m.yes_ask_dollars ?? "0")
+  return Math.round((ask - bid) * 100) / 100
+}
+
+/** Human-readable time until market closes. */
+export function timeUntilClose(m: KalshiMarket): string {
+  const now = new Date()
+  const close = new Date(m.close_time)
+  const diff = close.getTime() - now.getTime()
+  if (diff <= 0) return "Closed"
+  const days = Math.floor(diff / 86400000)
+  const hours = Math.floor((diff % 86400000) / 3600000)
+  const minutes = Math.floor((diff % 3600000) / 60000)
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+/** Format volume for display. */
+export function formatVol(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`
+  return `$${Math.round(v)}`
+}
+
+/** Format close time for display. */
+export function formatClose(closeTime: string): string {
+  try {
+    const d = new Date(closeTime)
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  } catch {
+    return "—"
+  }
 }
 
 /** Map series_ticker to a Kalshi category label. */
@@ -296,6 +432,7 @@ export async function fetchKalshiEvents(params: {
   category?: string
   series_ticker?: string
   with_nested_markets?: boolean
+  min_close_ts?: number
 }): Promise<KalshiEventsResponse> {
   const searchParams = new URLSearchParams()
   if (params.status) searchParams.set("status", params.status)
@@ -304,6 +441,8 @@ export async function fetchKalshiEvents(params: {
   if (params.category) searchParams.set("category", params.category)
   if (params.series_ticker) searchParams.set("series_ticker", params.series_ticker)
   if (params.with_nested_markets) searchParams.set("with_nested_markets", "true")
+  if (params.series_ticker) searchParams.set("series_ticker", params.series_ticker)
+  if (params.min_close_ts != null) searchParams.set("min_close_ts", String(params.min_close_ts))
 
   const url = `${KALSHI_API}/events?${searchParams.toString()}`
   const res = await fetch(url, { cache: "no-store" })
@@ -426,4 +565,122 @@ export async function fetchMentionsMarkets(params: {
   // Sort by total volume descending
   events.sort((a, b) => b.total_volume - a.total_volume)
   return { events }
+}
+
+export async function fetchKalshiSeries(params: {
+  category?: string
+  limit?: number
+  cursor?: string
+  tags?: string
+}): Promise<KalshiSeriesResponse> {
+  const searchParams = new URLSearchParams()
+  if (params.category) searchParams.set("category", params.category)
+  if (params.limit != null) searchParams.set("limit", String(params.limit))
+  if (params.cursor) searchParams.set("cursor", params.cursor)
+  if (params.tags) searchParams.set("tags", params.tags)
+
+  const url = `${KALSHI_API}/series?${searchParams.toString()}`
+  const res = await fetch(url, { next: { revalidate: 60 } })
+  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+  return res.json() as Promise<KalshiSeriesResponse>
+}
+
+/** Process items sequentially with retry and throttling to respect API rate limits. */
+export async function throttledMap<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  batchSize: number
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = []
+  const failed: { index: number; item: T }[] = []
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    for (let j = 0; j < batch.length; j++) {
+      try {
+        const value = await fn(batch[j])
+        results.push({ status: "fulfilled", value })
+      } catch (reason) {
+        failed.push({ index: results.length, item: batch[j] })
+        results.push({ status: "rejected", reason })
+      }
+    }
+    if (i + batchSize < items.length) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+
+  // Retry failed items after a cooldown
+  if (failed.length > 0) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    for (const { index, item } of failed) {
+      try {
+        const value = await fn(item)
+        results[index] = { status: "fulfilled", value }
+      } catch {
+        // Keep the original rejection
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+  }
+
+  return results
+}
+
+export async function fetchKalshiMarketsByEvent(params: {
+  event_ticker: string
+  status?: string
+  limit?: number
+}): Promise<KalshiMarketsResponse> {
+  const searchParams = new URLSearchParams()
+  searchParams.set("event_ticker", params.event_ticker)
+  if (params.status) searchParams.set("status", params.status)
+  if (params.limit != null) searchParams.set("limit", String(params.limit))
+
+  const url = `${KALSHI_API}/markets?${searchParams.toString()}`
+  const res = await fetch(url, { next: { revalidate: 30 } })
+  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+  return res.json() as Promise<KalshiMarketsResponse>
+}
+
+export async function fetchKalshiOrderbook(ticker: string): Promise<KalshiOrderbook> {
+  const url = `${KALSHI_API}/markets/${ticker}/orderbook`
+  const res = await fetch(url, { next: { revalidate: 10 } })
+  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+  const data = await res.json()
+  const ob = data.orderbook_fp ?? data.orderbook
+  return { yes: ob?.yes_dollars ?? [], no: ob?.no_dollars ?? [] } as KalshiOrderbook
+}
+
+export async function fetchKalshiCandlesticks(
+  ticker: string,
+  seriesTicker: string,
+  params: { period_interval?: number; start_ts?: number; end_ts?: number } = {}
+): Promise<KalshiCandlestick[]> {
+  const searchParams = new URLSearchParams()
+  const interval = params.period_interval ?? 60
+  searchParams.set("period_interval", String(interval))
+  // Default to last 24 hours if not specified
+  const now = Math.floor(Date.now() / 1000)
+  searchParams.set("start_ts", String(params.start_ts ?? now - 86400))
+  searchParams.set("end_ts", String(params.end_ts ?? now))
+  const url = `${KALSHI_API}/series/${seriesTicker}/markets/${ticker}/candlesticks?${searchParams}`
+  const res = await fetch(url, { next: { revalidate: 30 } })
+  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+  const data = await res.json()
+  return data.candlesticks as KalshiCandlestick[]
+}
+
+export async function fetchKalshiTrades(
+  ticker: string,
+  params: { limit?: number; cursor?: string } = {}
+): Promise<{ trades: KalshiTrade[]; cursor: string }> {
+  const searchParams = new URLSearchParams()
+  searchParams.set("ticker", ticker)
+  if (params.limit) searchParams.set("limit", String(params.limit))
+  if (params.cursor) searchParams.set("cursor", params.cursor)
+  const url = `${KALSHI_API}/markets/trades?${searchParams}`
+  const res = await fetch(url, { next: { revalidate: 15 } })
+  if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
+  return res.json()
 }
