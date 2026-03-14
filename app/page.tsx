@@ -118,8 +118,8 @@ export default function Page() {
         )}
 
         {/* Hero — fantasy league */}
-        <section className="mb-12 text-center md:mb-16">
-          <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl lg:text-5xl">
+        <section className="mb-12 text-center md:mb-16 mt-12">
+          <h1 className="text-3xl font-medium tracking-tight text-white md:text-4xl lg:text-5xl">
             The fantasy league for prediction markets
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-white/80">
@@ -139,7 +139,7 @@ export default function Page() {
             <Button
               variant="outline"
               size="lg"
-              className="border-white/20 text-white hover:bg-white/10"
+              className="border-white/20 text-foreground hover:bg-white/70"
             >
               How scoring works
             </Button>
@@ -473,10 +473,10 @@ export default function Page() {
             Wagyr uses live markets from Kalshi — a regulated prediction market. Event outcomes and odds are real. Your league&apos;s slate is curated from these markets so you compete on the same events that move with the news. No fake odds; no fake outcomes.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button size="lg" className="font-semibold text-[#171b2c] hover:opacity-90" style={{ background: WAGYR_GREEN }}>
+            <Button size="lg" className="font-semibold text-[#171b2c] hover:opacity-80" style={{ background: WAGYR_GREEN }}>
               Get started — create a league
             </Button>
-            <Button variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/10">
+            <Button variant="outline" size="lg" className="border-white/20 text-foreground hover:bg-white/70">
               How it works
             </Button>
           </div>

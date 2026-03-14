@@ -241,16 +241,44 @@ export async function fetchKalshiEvents(params: {
   status?: string
   limit?: number
   cursor?: string
+  category?: string
   with_nested_markets?: boolean
 }): Promise<KalshiEventsResponse> {
   const searchParams = new URLSearchParams()
   if (params.status) searchParams.set("status", params.status)
   if (params.limit != null) searchParams.set("limit", String(params.limit))
   if (params.cursor) searchParams.set("cursor", params.cursor)
+  if (params.category) searchParams.set("category", params.category)
   if (params.with_nested_markets) searchParams.set("with_nested_markets", "true")
 
   const url = `${KALSHI_API}/events?${searchParams.toString()}`
   const res = await fetch(url, { next: { revalidate: 60 } })
   if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
   return res.json() as Promise<KalshiEventsResponse>
+}
+
+/** Fetch markets for a given Kalshi category (e.g. Financials) by loading events and flattening nested markets. */
+export async function fetchKalshiMarketsByCategory(params: {
+  category: string
+  status?: string
+  limit?: number
+}): Promise<{ markets: KalshiMarket[] }> {
+  const limit = params.limit ?? 100
+  const data = await fetchKalshiEvents({
+    status: params.status ?? "open",
+    limit,
+    category: params.category,
+    with_nested_markets: true,
+  })
+  const markets: KalshiMarket[] = []
+  for (const event of data.events ?? []) {
+    if (event.category !== params.category) continue
+    for (const m of event.markets ?? []) {
+      markets.push({
+        ...m,
+        series_ticker: event.series_ticker,
+      } as KalshiMarket)
+    }
+  }
+  return { markets }
 }

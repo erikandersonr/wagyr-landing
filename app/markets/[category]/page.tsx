@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, notFound } from "next/navigation"
 import {
   Card,
@@ -15,13 +15,31 @@ import {
   KALSHI_SUBCATEGORIES,
 } from "@/lib/kalshi"
 import type { KalshiCategoryId } from "@/lib/kalshi"
+import type { KalshiMarket } from "@/lib/kalshi"
+import { yesPercent, noPercent, volume } from "@/lib/kalshi"
+import { CircleNotch } from "@phosphor-icons/react"
 
 const WAGYR_GREEN = "#00d4aa"
 const WAGYR_CARD = "#1e2337"
 const WAGYR_BORDER = "rgba(255,255,255,0.08)"
 const WAGYR_MUTED = "rgba(255,255,255,0.5)"
 
-/** Mock markets for each category — placeholder data */
+function formatVol(v: number): string {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`
+  return `$${Math.round(v)}`
+}
+
+function formatClose(closeTime: string): string {
+  try {
+    const d = new Date(closeTime)
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  } catch {
+    return "—"
+  }
+}
+
+/** Mock markets for non-wired categories — placeholder data */
 function getMockMarkets(category: string, subcategory: string) {
   const titles: Record<string, string[]> = {
     politics: [
@@ -120,7 +138,6 @@ export default function CategoryPage() {
   const params = useParams()
   const categoryId = params.category as string
 
-  // Validate category
   const category = KALSHI_CATEGORIES.find((c) => c.id === categoryId)
   if (!category || categoryId === "home") {
     notFound()
@@ -129,20 +146,49 @@ export default function CategoryPage() {
   const subcategories = KALSHI_SUBCATEGORIES[categoryId as Exclude<KalshiCategoryId, "home">]
   const [activeSubcategory, setActiveSubcategory] = useState("all")
 
+  const isFinancials = categoryId === "financials"
+  const [kalshiMarkets, setKalshiMarkets] = useState<KalshiMarket[]>([])
+  const [loading, setLoading] = useState(isFinancials)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isFinancials) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetch("/api/kalshi/markets?category=financials&limit=50")
+      .then((res) => {
+        if (!res.ok) throw new Error(res.statusText)
+        return res.json()
+      })
+      .then((data: { markets: KalshiMarket[] }) => {
+        if (!cancelled) setKalshiMarkets(data.markets ?? [])
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load markets")
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isFinancials])
+
   const mockMarkets = getMockMarkets(categoryId, activeSubcategory)
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 md:px-6">
-      {/* Category title */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white">{category.label}</h1>
         <p className="mt-2 text-sm" style={{ color: WAGYR_MUTED }}>
-          Browse {category.label.toLowerCase()} prediction markets. Pick a subcategory to focus your league.
+          {isFinancials
+            ? "Live Kalshi financials markets — S&P, Nasdaq, Treasuries, FX, and more. Use these for your league slate."
+            : `Browse ${category.label.toLowerCase()} prediction markets. Pick a subcategory to focus your league.`}
         </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[200px_1fr]">
-        {/* Subcategory sidebar */}
         <aside>
           <nav className="space-y-0.5">
             {subcategories.map((sub) => (
@@ -166,9 +212,7 @@ export default function CategoryPage() {
           </nav>
         </aside>
 
-        {/* Market cards grid */}
         <div>
-          {/* Filter bar */}
           <div className="mb-4 flex items-center gap-2">
             <Button
               variant="ghost"
@@ -194,52 +238,119 @@ export default function CategoryPage() {
             </Button>
           </div>
 
-          {/* Cards */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {mockMarkets.map((m) => (
-              <Card
-                key={m.id}
-                className="cursor-pointer border-0 transition-colors hover:opacity-95"
-                style={{ background: WAGYR_CARD }}
-              >
-                <CardHeader className="pb-2">
-                  <CardDescription
-                    className="text-xs"
-                    style={{ color: WAGYR_MUTED }}
+          {isFinancials && error && (
+            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
+            </div>
+          )}
+
+          {isFinancials && loading && (
+            <div className="flex items-center justify-center py-16">
+              <CircleNotch className="size-8 animate-spin" style={{ color: WAGYR_GREEN }} weight="bold" />
+            </div>
+          )}
+
+          {isFinancials && !loading && (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {kalshiMarkets.length === 0 ? (
+                <p className="col-span-full py-8 text-center text-white/60">
+                  No open financials markets right now. Check back later.
+                </p>
+              ) : (
+                kalshiMarkets.map((m) => (
+                  <Card
+                    key={m.ticker}
+                    className="cursor-pointer border-0 transition-colors hover:opacity-95"
+                    style={{ background: WAGYR_CARD }}
                   >
-                    {category.label} · Closes {m.closeDate}
-                  </CardDescription>
-                  <CardTitle className="text-sm font-medium text-white line-clamp-2">
-                    {m.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex gap-2">
-                      <span
-                        className="rounded-full px-2.5 py-0.5 text-xs font-medium"
-                        style={{
-                          background: "rgba(0,212,170,0.2)",
-                          color: WAGYR_GREEN,
-                        }}
+                    <CardHeader className="pb-2">
+                      <CardDescription
+                        className="text-xs"
+                        style={{ color: WAGYR_MUTED }}
                       >
-                        YES {m.yesPercent}%
-                      </span>
-                      <span
-                        className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white/70"
-                        style={{ background: "rgba(255,255,255,0.1)" }}
-                      >
-                        NO {100 - m.yesPercent}%
+                        {category.label} · Closes {formatClose(m.close_time)}
+                      </CardDescription>
+                      <CardTitle className="text-sm font-medium text-white line-clamp-2">
+                        {m.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex gap-2">
+                          <span
+                            className="rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            style={{
+                              background: "rgba(0,212,170,0.2)",
+                              color: WAGYR_GREEN,
+                            }}
+                          >
+                            YES {yesPercent(m)}%
+                          </span>
+                          <span
+                            className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white/70"
+                            style={{ background: "rgba(255,255,255,0.1)" }}
+                          >
+                            NO {noPercent(m)}%
+                          </span>
+                        </div>
+                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+                          {formatVol(volume(m))} vol
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
+
+          {!isFinancials && (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {mockMarkets.map((m) => (
+                <Card
+                  key={m.id}
+                  className="cursor-pointer border-0 transition-colors hover:opacity-95"
+                  style={{ background: WAGYR_CARD }}
+                >
+                  <CardHeader className="pb-2">
+                    <CardDescription
+                      className="text-xs"
+                      style={{ color: WAGYR_MUTED }}
+                    >
+                      {category.label} · Closes {m.closeDate}
+                    </CardDescription>
+                    <CardTitle className="text-sm font-medium text-white line-clamp-2">
+                      {m.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex gap-2">
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-xs font-medium"
+                          style={{
+                            background: "rgba(0,212,170,0.2)",
+                            color: WAGYR_GREEN,
+                          }}
+                        >
+                          YES {m.yesPercent}%
+                        </span>
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white/70"
+                          style={{ background: "rgba(255,255,255,0.1)" }}
+                        >
+                          NO {100 - m.yesPercent}%
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+                        {m.volume} vol
                       </span>
                     </div>
-                    <span className="text-xs" style={{ color: WAGYR_MUTED }}>
-                      {m.volume} vol
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </main>
