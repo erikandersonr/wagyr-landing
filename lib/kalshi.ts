@@ -249,6 +249,28 @@ export function getMentionsSubcategoryId(m: KalshiMarket): string {
   return "all"
 }
 
+/**
+ * Returns true if an event looks like a real "mentions" market
+ * (e.g. "Announcers at X vs Y", "What will X say during…").
+ * Kalshi's API returns a very broad set under category=Mentions;
+ * this filter narrows it to match what their actual Mentions page shows.
+ */
+export function isMentionsEvent(event: KalshiEvent): boolean {
+  const t = (event.title ?? "").toLowerCase()
+  // Announcer word-tracking markets
+  if (t.startsWith("announcers at")) return true
+  // "What will X say" markets
+  if (/what will .+ say/.test(t)) return true
+  // "Will X mention" / "mentions" markets
+  if (/\bmention/.test(t)) return true
+  // "What will be said" markets
+  if (/what will .+ be said/.test(t)) return true
+  // Series tickers that explicitly contain MENTION
+  const s = (event.series_ticker ?? "").toUpperCase()
+  if (s.includes("MENTION")) return true
+  return false
+}
+
 export async function fetchKalshiMarkets(params: {
   status?: string
   limit?: number
@@ -272,6 +294,7 @@ export async function fetchKalshiEvents(params: {
   limit?: number
   cursor?: string
   category?: string
+  series_ticker?: string
   with_nested_markets?: boolean
 }): Promise<KalshiEventsResponse> {
   const searchParams = new URLSearchParams()
@@ -279,6 +302,7 @@ export async function fetchKalshiEvents(params: {
   if (params.limit != null) searchParams.set("limit", String(params.limit))
   if (params.cursor) searchParams.set("cursor", params.cursor)
   if (params.category) searchParams.set("category", params.category)
+  if (params.series_ticker) searchParams.set("series_ticker", params.series_ticker)
   if (params.with_nested_markets) searchParams.set("with_nested_markets", "true")
 
   const url = `${KALSHI_API}/events?${searchParams.toString()}`
@@ -293,10 +317,13 @@ export async function fetchKalshiMarketsByCategory(params: {
   status?: string
   limit?: number
   minMarkets?: number
+  /** Optional filter applied per-event before collecting markets. */
+  eventFilter?: (event: KalshiEvent) => boolean
 }): Promise<{ markets: KalshiMarket[] }> {
   const pageLimit = 50
   const minMarkets = params.minMarkets ?? 24
-  const maxPages = 3
+  // Allow more pages when filtering (most results get discarded)
+  const maxPages = params.eventFilter ? 8 : 3
   const markets: KalshiMarket[] = []
   let cursor: string | undefined
 
@@ -310,6 +337,7 @@ export async function fetchKalshiMarketsByCategory(params: {
     })
 
     for (const event of data.events ?? []) {
+      if (params.eventFilter && !params.eventFilter(event)) continue
       for (const m of event.markets ?? []) {
         if (m.status !== "active") continue
         markets.push({
@@ -324,4 +352,78 @@ export async function fetchKalshiMarketsByCategory(params: {
   }
 
   return { markets }
+}
+
+/**
+ * Known series-ticker prefixes for real Kalshi "mentions" markets.
+ * These correspond to announcer word-tracking, "what will X say", etc.
+ * Update this list as Kalshi adds new mention series.
+ */
+const MENTION_SERIES_PREFIXES = [
+  "KXNBAMENTION",
+  "KXNCAABMENTION",
+  "KXNFLMENTION",
+  "KXNFLDPMENTION",
+  "KXNHLDPMENTION",
+  "KXMLBMENTION",
+  "KXMMAMENTION",
+  "KXEPLMENTION",
+  "KXSNLMENTION",
+  "KXOSCARMENTION",
+  "KXPOWELLMENTION",
+  "KXLEAVITTMENTION",
+  "KXTRUMPMENTION",
+  "KXEARNINGSCALLMENTION",
+  "KXPRESSMENTION",
+]
+
+/** A mentions event with its nested word markets, ready for the frontend. */
+export type MentionsEvent = {
+  event_ticker: string
+  series_ticker: string
+  title: string
+  markets: KalshiMarket[]
+  /** Sum of volume across all nested markets */
+  total_volume: number
+  /** Earliest close time across nested markets */
+  close_time: string
+}
+
+/** Fetch real mentions markets by querying known series-ticker prefixes in parallel. */
+export async function fetchMentionsMarkets(params: {
+  status?: string
+}): Promise<{ events: MentionsEvent[] }> {
+  const results = await Promise.allSettled(
+    MENTION_SERIES_PREFIXES.map((prefix) =>
+      fetchKalshiEvents({
+        status: params.status ?? "open",
+        limit: 50,
+        series_ticker: prefix,
+        with_nested_markets: true,
+      })
+    )
+  )
+
+  const events: MentionsEvent[] = []
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue
+    for (const event of result.value.events ?? []) {
+      const activeMarkets = (event.markets ?? []).filter((m) => m.status === "active")
+      if (activeMarkets.length === 0) continue
+      const totalVol = activeMarkets.reduce((sum, m) => sum + (parseFloat(m.volume_fp ?? "0") || 0), 0)
+      const closeTimes = activeMarkets.map((m) => m.close_time).filter(Boolean).sort()
+      events.push({
+        event_ticker: event.event_ticker,
+        series_ticker: event.series_ticker,
+        title: event.title,
+        markets: activeMarkets,
+        total_volume: totalVol,
+        close_time: closeTimes[0] ?? "",
+      })
+    }
+  }
+
+  // Sort by total volume descending
+  events.sort((a, b) => b.total_volume - a.total_volume)
+  return { events }
 }

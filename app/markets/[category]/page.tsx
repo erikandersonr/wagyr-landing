@@ -15,7 +15,7 @@ import {
   KALSHI_SUBCATEGORIES,
 } from "@/lib/kalshi"
 import type { KalshiCategoryId } from "@/lib/kalshi"
-import type { KalshiMarket } from "@/lib/kalshi"
+import type { KalshiMarket, MentionsEvent } from "@/lib/kalshi"
 import { yesPercent, noPercent, volume, volume24h, getFinancialsSubcategoryId, getMentionsSubcategoryId } from "@/lib/kalshi"
 import { CircleNotch } from "@phosphor-icons/react"
 
@@ -161,8 +161,10 @@ export default function CategoryPage() {
   const [activeTab, setActiveTab] = useState<SortTab>("trending")
 
   const isLiveCategory = LIVE_CATEGORIES.has(categoryId)
+  const isMentions = categoryId === "mentions"
   const getSubcategoryId = SUBCATEGORY_MAPPER[categoryId] ?? (() => "all")
   const [kalshiMarkets, setKalshiMarkets] = useState<KalshiMarket[]>([])
+  const [mentionsEvents, setMentionsEvents] = useState<MentionsEvent[]>([])
   const [loading, setLoading] = useState(isLiveCategory)
   const [error, setError] = useState<string | null>(null)
 
@@ -196,8 +198,13 @@ export default function CategoryPage() {
         if (!res.ok) throw new Error(res.statusText)
         return res.json()
       })
-      .then((data: { markets: KalshiMarket[] }) => {
-        if (!cancelled) setKalshiMarkets(data.markets ?? [])
+      .then((data) => {
+        if (cancelled) return
+        if (isMentions && data.events) {
+          setMentionsEvents(data.events ?? [])
+        } else {
+          setKalshiMarkets(data.markets ?? [])
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load markets")
@@ -208,7 +215,7 @@ export default function CategoryPage() {
     return () => {
       cancelled = true
     }
-  }, [isLiveCategory, categoryId])
+  }, [isLiveCategory, isMentions, categoryId])
 
   const mockMarkets = getMockMarkets(categoryId, activeSubcategory)
 
@@ -288,7 +295,71 @@ export default function CategoryPage() {
             </div>
           )}
 
-          {isLiveCategory && !loading && (
+          {isLiveCategory && !loading && isMentions && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {mentionsEvents.length === 0 ? (
+                <p className="col-span-full py-8 text-center text-white/60">
+                  No open mentions markets right now. Check back later.
+                </p>
+              ) : (
+                mentionsEvents.map((evt) => (
+                  <Card
+                    key={evt.event_ticker}
+                    className="cursor-pointer border-0 transition-colors hover:opacity-95"
+                    style={{ background: WAGYR_CARD }}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardDescription
+                        className="text-xs"
+                        style={{ color: WAGYR_MUTED }}
+                      >
+                        Mentions · Closes {formatClose(evt.close_time)}
+                      </CardDescription>
+                      <CardTitle className="text-sm font-medium text-white">
+                        {evt.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="mb-3 space-y-1.5">
+                        {evt.markets.slice(0, 4).map((m) => (
+                          <div
+                            key={m.ticker}
+                            className="flex items-center justify-between"
+                          >
+                            <span className="text-xs text-white/80 truncate mr-2" style={{ maxWidth: '60%' }}>
+                              {m.yes_sub_title || m.subtitle || m.title}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5 text-xs font-medium shrink-0"
+                              style={{
+                                background: "rgba(0,212,170,0.2)",
+                                color: WAGYR_GREEN,
+                              }}
+                            >
+                              {yesPercent(m)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div
+                        className="flex items-center justify-between border-t pt-2"
+                        style={{ borderColor: WAGYR_BORDER }}
+                      >
+                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+                          {formatVol(evt.total_volume)} vol
+                        </span>
+                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+                          {evt.markets.length} markets
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
+
+          {isLiveCategory && !loading && !isMentions && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {sortedMarkets.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-white/60">
