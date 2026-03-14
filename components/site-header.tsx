@@ -48,13 +48,15 @@ export function SiteHeader() {
               <Info className="size-4" weight="bold" />
               How it works
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-white/20 text-foreground hover:bg-white/70"
-            >
-              Log in
-            </Button>
+            <Link href="/sign-in">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/20 text-foreground hover:bg-white/70"
+              >
+                Log in
+              </Button>
+            </Link>
             <Button
               size="sm"
               className="font-medium text-[#171b2c] hover:opacity-80"
@@ -80,11 +82,10 @@ export function SiteHeader() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className={`shrink-0 rounded-lg px-4 ${
-                    isActive
+                  className={`shrink-0 rounded-lg px-4 ${isActive
                       ? "text-[#171b2c]"
                       : "text-white/70 hover:bg-white/10 hover:text-white"
-                  }`}
+                    }`}
                   style={isActive ? { background: WAGYR_GREEN } : undefined}
                 >
                   {cat.label}
