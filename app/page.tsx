@@ -1,10 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Card,
   CardContent,
@@ -13,11 +10,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  MagnifyingGlass,
-  Info,
   BookmarkSimple,
   TrendUp,
-  Flame,
   CaretRight,
   ShareNetwork,
   CircleNotch,
@@ -44,20 +38,11 @@ const WAGYR_CARD = "#1e2337"
 const WAGYR_BORDER = "rgba(255,255,255,0.08)"
 const WAGYR_MUTED = "rgba(255,255,255,0.5)"
 
-const CATEGORIES = [
-  "Trending",
-  "Fed policy",
-  "Geopolitics",
-  "Earnings",
-  "Elections",
-  "More",
-]
-
 const WEEKLY_THEMES = [
-  { id: "fed", name: "Fed policy", desc: "Rates, inflation, and Fed decisions.", icon: ChartLineUp },
-  { id: "geo", name: "Geopolitics", desc: "Elections, tariffs, and global events.", icon: Target },
-  { id: "earnings", name: "Earnings", desc: "Tech and macro earnings, markets.", icon: TrendUp },
-  { id: "elections", name: "Elections", desc: "Polls, outcomes, and political markets.", icon: UsersThree },
+  { id: "fed", name: "Economics", desc: "Rates, inflation, and Fed decisions.", icon: ChartLineUp },
+  { id: "politics", name: "Politics", desc: "Elections, tariffs, and global events.", icon: Target },
+  { id: "financials", name: "Financials", desc: "Markets, earnings, and company events.", icon: TrendUp },
+  { id: "sports", name: "Sports", desc: "NFL, NBA, MLB, and more.", icon: UsersThree },
 ] as const
 
 /** Mock leaderboard for illustration */
@@ -124,85 +109,7 @@ export default function Page() {
   const currentTheme = "Geopolitics"
 
   return (
-    <div
-      className="wagyr-landing min-h-screen"
-      style={{ background: WAGYR_BG }}
-    >
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b px-4 py-3 md:px-6" style={{ borderColor: WAGYR_BORDER, background: WAGYR_BG }}>
-        <div className="mx-auto flex max-w-7xl items-center gap-4 justify-between">
-          <Link href="/" className="flex shrink-0 items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="Wagyr"
-              width={120}
-              height={120}
-              className="rounded-lg"
-            />
-          </Link>
-          <div className="relative hidden flex-1 max-w-md">
-            <MagnifyingGlass
-              className="absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              style={{ color: WAGYR_MUTED }}
-              weight="bold"
-            />
-            <Input
-              placeholder="Search events..."
-              className="h-9 border-0 pl-9 text-white placeholder:opacity-60"
-              style={{ background: WAGYR_CARD }}
-            />
-          </div>
-          <nav className="flex shrink-0 items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              <Info className="size-4" weight="bold" />
-              How it works
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-white/20 text-foreground hover:bg-white/70"
-            >
-              Log in
-            </Button>
-            <Button
-              size="sm"
-              className="font-medium text-[#171b2c] hover:opacity-80"
-              style={{ background: WAGYR_GREEN }}
-            >
-              Sign up
-            </Button>
-          </nav>
-        </div>
-      </header>
-
-      {/* Category nav — league themes */}
-      <div className="border-b px-4 py-2 md:px-6" style={{ borderColor: WAGYR_BORDER }}>
-        <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto pb-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0 rounded-lg px-4 text-[#171b2c]"
-            style={{ background: WAGYR_GREEN }}
-          >
-            Leagues
-          </Button>
-          {CATEGORIES.filter((c) => c !== "Trending").map((cat) => (
-            <Button
-              key={cat}
-              variant="ghost"
-              size="sm"
-              className="shrink-0 rounded-lg px-4 text-white/70 hover:bg-white/10 hover:text-white"
-            >
-              {cat}
-            </Button>
-          ))}
-        </div>
-      </div>
-
+    <>
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-6">
         {error && (
           <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -575,6 +482,6 @@ export default function Page() {
           </div>
         </section>
       </main>
-    </div>
+    </>
   )
 }
