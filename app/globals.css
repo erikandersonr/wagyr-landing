@@ -39,6 +39,15 @@
     --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Wagyr landing page brand colors */
+.wagyr-landing {
+    --wagyr-bg: #171b2c;
+    --wagyr-green: #00d4aa;
+    --wagyr-card: #1e2337;
+    --wagyr-border: rgba(255, 255, 255, 0.08);
+    --wagyr-muted: rgba(255, 255, 255, 0.5);
+}
+
 .dark {
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
