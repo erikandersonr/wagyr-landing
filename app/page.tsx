@@ -23,6 +23,7 @@ import {
   Lightning,
 } from "@phosphor-icons/react"
 import { type KalshiMarket, type KalshiEvent, formatEventTitle } from "@/lib/kalshi"
+import { EventDetailDialog } from "@/components/event-detail-dialog"
 import {
   yesPercent,
   noPercent,
@@ -289,15 +290,23 @@ export default function Page() {
               {!loading && featured && (() => {
                 const maxM = getTopMarket(featured)
                 if (!maxM) return <CardContent className="py-6 text-center text-sm text-white/60">No markets found for this event.</CardContent>
+                const sorted = [...(featured.markets ?? [])].sort((a, b) => yesPercent(b) - yesPercent(a))
                 return (
                   <CardContent className="space-y-4 pt-0">
-                    <div className="flex flex-wrap gap-3">
-                      <span className="rounded-full px-3 py-1 text-sm font-medium" style={{ background: "rgba(0,212,170,0.2)", color: WAGYR_GREEN }}>
-                        YES {yesPercent(maxM)}%
-                      </span>
-                      <span className="rounded-full px-3 py-1 text-sm font-medium text-white/70" style={{ background: "rgba(255,255,255,0.1)" }}>
-                        NO {noPercent(maxM)}%
-                      </span>
+                    <div className="space-y-2">
+                      {sorted.slice(0, 3).map((m) => (
+                        <div key={m.ticker} className="flex items-center justify-between gap-3">
+                          <span className="min-w-0 truncate text-sm text-white/90">{m.yes_sub_title || m.title}</span>
+                          <span className="shrink-0 rounded-full px-3 py-1 text-sm font-medium" style={{ background: "rgba(0,212,170,0.2)", color: WAGYR_GREEN }}>
+                            YES {yesPercent(m)}%
+                          </span>
+                        </div>
+                      ))}
+                      {sorted.length > 3 && (
+                        <div className="text-right">
+                          <span className="text-xs" style={{ color: WAGYR_MUTED }}>+ {sorted.length - 3} more options</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-xs" style={{ color: WAGYR_MUTED }}>
                       <span style={{ color: WAGYR_GREEN }}>{formatVol(getEventVolume(featured))} vol</span>
@@ -420,31 +429,35 @@ export default function Page() {
                   </Card>
                 ))
               : slate.map((e) => {
-                  const m = getTopMarket(e)
-                  if (!m) return null
+                  const markets = e.markets ?? []
+                  const sorted = [...markets].sort((a, b) => yesPercent(b) - yesPercent(a))
                   return (
-                    <Card
-                      key={e.event_ticker}
-                      className="cursor-pointer border-0 transition-colors hover:opacity-95"
-                      style={{ background: WAGYR_CARD }}
-                    >
-                      <CardHeader className="pb-2">
-                        <CardDescription className="text-xs" style={{ color: WAGYR_MUTED }}>
-                          {e.category || themeFromSeries(e.series_ticker)} · Closes {formatClose(m.close_time)}
-                        </CardDescription>
-                        <CardTitle className="text-sm font-medium text-white line-clamp-2" title={formatEventTitle(e, m)}>{formatEventTitle(e, m)}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-sm font-medium" style={{ color: WAGYR_GREEN }}>
-                            YES {yesPercent(m)}% · NO {noPercent(m)}%
-                          </span>
-                          <span className="text-xs" style={{ color: WAGYR_MUTED }}>
-                            {formatVol(getEventVolume(e))} vol
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <EventDetailDialog key={e.event_ticker} event={e} trigger={
+                      <Card className="cursor-pointer border-0 transition-colors hover:opacity-95" style={{ background: WAGYR_CARD }}>
+                        <CardHeader className="pb-3">
+                          <CardDescription className="flex items-center justify-between text-xs" style={{ color: WAGYR_MUTED }}>
+                            <span>{e.category || themeFromSeries(e.series_ticker)}</span>
+                            <span>{formatVol(getEventVolume(e))} vol</span>
+                          </CardDescription>
+                          <CardTitle className="mt-1 text-sm font-medium text-white line-clamp-2" title={e.title}>{e.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 pt-0">
+                          {sorted.slice(0, 2).map((m) => (
+                            <div key={m.ticker} className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 truncate text-xs text-white/80">{m.yes_sub_title || m.title}</span>
+                              <span className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: "rgba(0,212,170,0.15)", color: WAGYR_GREEN }}>
+                                {yesPercent(m)}%
+                              </span>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-end pt-1">
+                            <span className="text-[11px]" style={{ color: WAGYR_MUTED }}>
+                              {markets.length} market{markets.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    } />
                   )
                 })}
           </div>
