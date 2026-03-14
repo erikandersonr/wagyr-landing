@@ -474,6 +474,9 @@ export async function fetchKalshiMarketsByCategory(params: {
   let cursor: string | undefined
 
   for (let page = 0; page < maxPages; page++) {
+    // Add small delay to avoid 429 rate limits when aggressively paging
+    if (page > 0) await new Promise((resolve) => setTimeout(resolve, 150))
+
     const data = await fetchKalshiEvents({
       status: params.status ?? "open",
       limit: pageLimit,

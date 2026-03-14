@@ -7,6 +7,7 @@ export const revalidate = 0
 /** Map app category id (e.g. financials) to Kalshi API category (e.g. Financials). */
 const CATEGORY_MAP: Record<string, string> = {
   financials: "Financials",
+  "tech-science": "Science and Technology",
 }
 
 export async function GET(request: Request) {
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
         category: kalshiCategory,
         status,
         limit,
+        eventFilter: (e) => e.category === kalshiCategory,
       })
       return NextResponse.json(data)
     }

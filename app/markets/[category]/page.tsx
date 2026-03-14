@@ -146,16 +146,16 @@ export default function CategoryPage() {
   const subcategories = KALSHI_SUBCATEGORIES[categoryId as Exclude<KalshiCategoryId, "home">]
   const [activeSubcategory, setActiveSubcategory] = useState("all")
   const [activeTab, setActiveTab] = useState<SortTab>("trending")
-
   // Categories with live Kalshi data via events route
   const usesEventsRoute = categoryId === "crypto" || categoryId === "politics" || categoryId === "sports" || categoryId === "culture" || categoryId === "climate" || categoryId === "economics" || categoryId === "companies"
-  // Financials and mentions use teammates' markets route approach
-  const isFinancialsOrMentions = categoryId === "financials" || categoryId === "mentions"
+  // Financials, Mentions, Tech-Science use the specific markets API route
+  const isFinancialsMentionsOrTech = categoryId === "financials" || categoryId === "mentions" || categoryId === "tech-science"
   const isMentions = categoryId === "mentions"
-  const isLive = usesEventsRoute || isFinancialsOrMentions
+  const isFinancialsOrTech = categoryId === "financials" || categoryId === "tech-science"
+  const isLive = usesEventsRoute || isFinancialsMentionsOrTech
   const getSubcategoryId = SUBCATEGORY_MAPPER[categoryId] ?? (() => "all")
 
-  // Crypto state
+  // Event-based state
   const [events, setEvents] = useState<KalshiEvent[]>([])
 
   // Financials/mentions state
@@ -183,9 +183,9 @@ export default function CategoryPage() {
     return () => { cancelled = true }
   }, [usesEventsRoute, categoryId, activeSubcategory])
 
-  // Financials/mentions fetch
+  // Financials/mentions/tech fetch
   useEffect(() => {
-    if (!isFinancialsOrMentions) return
+    if (!isFinancialsMentionsOrTech) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -200,7 +200,7 @@ export default function CategoryPage() {
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load") })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [isFinancialsOrMentions, isMentions, categoryId])
+  }, [isFinancialsMentionsOrTech, isMentions, categoryId])
 
   // Financials filtering and sorting
   const filteredMarkets = activeSubcategory === "all"
@@ -253,8 +253,8 @@ export default function CategoryPage() {
         </aside>
 
         <div>
-          {/* Sort tabs for financials/mentions */}
-          {isFinancialsOrMentions && (
+          {/* Sort tabs for financials/mentions/tech */}
+          {isFinancialsMentionsOrTech && (
             <div className="mb-4 flex items-center gap-2">
               {(["trending", "new", "closing-soon"] as const).map((tab) => (
                 <Button
@@ -345,11 +345,11 @@ export default function CategoryPage() {
             </div>
           )}
 
-          {/* ===== FINANCIALS: Standard market cards ===== */}
-          {categoryId === "financials" && !loading && (
+          {/* ===== FINANCIALS & TECH: Standard market cards ===== */}
+          {isFinancialsOrTech && !loading && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {sortedMarkets.length === 0 ? (
-                <p className="col-span-full py-8 text-center text-white/60">No open financials markets right now.</p>
+                <p className="col-span-full py-8 text-center text-white/60">No open {category.label.toLowerCase()} markets right now.</p>
               ) : sortedMarkets.map((m) => (
                 <Card key={m.ticker} className="cursor-pointer border-0 transition-colors hover:opacity-95" style={{ background: WAGYR_CARD }}>
                   <CardHeader className="pb-2">
