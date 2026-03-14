@@ -22,7 +22,7 @@ import {
   Target,
   Lightning,
 } from "@phosphor-icons/react"
-import type { KalshiMarket } from "@/lib/kalshi"
+import { type KalshiMarket, type KalshiEvent, formatEventTitle } from "@/lib/kalshi"
 import {
   yesPercent,
   noPercent,
@@ -57,7 +57,9 @@ const MOCK_LEADERBOARD = [
 ]
 
 export default function Page() {
-  const [markets, setMarkets] = useState<KalshiMarket[]>([])
+  const [featured, setFeatured] = useState<KalshiEvent | null>(null)
+  const [breaking, setBreaking] = useState<KalshiEvent[]>([])
+  const [slate, setSlate] = useState<KalshiEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,13 +67,17 @@ export default function Page() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch("/api/kalshi/markets?limit=24&status=open")
+    fetch("/api/kalshi/home")
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText)
         return res.json()
       })
-      .then((data: { markets: KalshiMarket[] }) => {
-        if (!cancelled) setMarkets(data.markets ?? [])
+      .then((data: { featured: KalshiEvent, breaking: KalshiEvent[], slate: KalshiEvent[] }) => {
+        if (!cancelled) {
+          setFeatured(data.featured)
+          setBreaking(data.breaking ?? [])
+          setSlate(data.slate ?? [])
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load")
@@ -84,16 +90,17 @@ export default function Page() {
     }
   }, [])
 
-  const breaking = [...markets]
-    .sort((a, b) => volume24h(b) - volume24h(a) || Math.abs(yesChangePercent(b)) - Math.abs(yesChangePercent(a)))
-    .slice(0, 3)
+  function getTopMarket(e: KalshiEvent | null): KalshiMarket | null {
+    if (!e || !e.markets || e.markets.length === 0) return null
+    return e.markets.reduce((best, m) => (volume(m) >= volume(best) ? m : best), e.markets[0])
+  }
 
-  const featured = markets.length
-    ? markets.reduce((best, m) => (volume(m) >= volume(best) ? m : best), markets[0])
-    : null
+  function getEventVolume(e: KalshiEvent | null): number {
+    if (!e || !e.markets) return 0
+    return e.markets.reduce((sum, m) => sum + volume(m), 0)
+  }
 
-  const gridMarkets = markets.slice(0, 12)
-  const currentTheme = "Geopolitics"
+  const currentTheme = "All Weekly Predictions"
 
   return (
     <>
@@ -260,7 +267,7 @@ export default function Page() {
                     Spotlight · This week&apos;s slate
                   </CardDescription>
                   <CardTitle className="mt-1 text-lg font-semibold text-white">
-                    {loading ? "Loading…" : featured ? featured.title : "No open markets"}
+                    {loading ? "Loading…" : featured ? formatEventTitle(featured, getTopMarket(featured)) : "No open markets"}
                   </CardTitle>
                 </div>
                 {featured && (
@@ -279,24 +286,28 @@ export default function Page() {
                   <CircleNotch className="size-8 animate-spin" style={{ color: WAGYR_GREEN }} weight="bold" />
                 </CardContent>
               )}
-              {!loading && featured && (
-                <CardContent className="space-y-4 pt-0">
-                  <div className="flex flex-wrap gap-3">
-                    <span className="rounded-full px-3 py-1 text-sm font-medium" style={{ background: "rgba(0,212,170,0.2)", color: WAGYR_GREEN }}>
-                      YES {yesPercent(featured)}%
-                    </span>
-                    <span className="rounded-full px-3 py-1 text-sm font-medium text-white/70" style={{ background: "rgba(255,255,255,0.1)" }}>
-                      NO {noPercent(featured)}%
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 text-xs" style={{ color: WAGYR_MUTED }}>
-                    <span style={{ color: WAGYR_GREEN }}>{formatVol(volume(featured))} vol</span>
-                    <span>Closes {formatClose(featured.close_time)}</span>
-                    <span>{themeFromSeries(featured.series_ticker)} · Kalshi</span>
-                  </div>
-                </CardContent>
-              )}
-              {!loading && !featured && markets.length === 0 && (
+              {!loading && featured && (() => {
+                const maxM = getTopMarket(featured)
+                if (!maxM) return <CardContent className="py-6 text-center text-sm text-white/60">No markets found for this event.</CardContent>
+                return (
+                  <CardContent className="space-y-4 pt-0">
+                    <div className="flex flex-wrap gap-3">
+                      <span className="rounded-full px-3 py-1 text-sm font-medium" style={{ background: "rgba(0,212,170,0.2)", color: WAGYR_GREEN }}>
+                        YES {yesPercent(maxM)}%
+                      </span>
+                      <span className="rounded-full px-3 py-1 text-sm font-medium text-white/70" style={{ background: "rgba(255,255,255,0.1)" }}>
+                        NO {noPercent(maxM)}%
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-xs" style={{ color: WAGYR_MUTED }}>
+                      <span style={{ color: WAGYR_GREEN }}>{formatVol(getEventVolume(featured))} vol</span>
+                      <span>Closes {formatClose(maxM.close_time)}</span>
+                      <span>{featured.category || themeFromSeries(featured.series_ticker)} · Kalshi</span>
+                    </div>
+                  </CardContent>
+                )
+              })()}
+              {!loading && !featured && (
                 <CardContent className="py-6 text-center text-sm text-white/60">No open markets right now. Check back later.</CardContent>
               )}
             </Card>
@@ -343,11 +354,14 @@ export default function Page() {
                         <div className="h-4 w-10 rounded bg-white/10" />
                       </div>
                     ))
-                  : breaking.map((m) => {
+                  : breaking.map((e) => {
+                      const m = getTopMarket(e)
+                      if (!m) return null
                       const change = yesChangePercent(m)
+                      const displayTitle = formatEventTitle(e, m)
                       return (
-                        <div key={m.ticker} className="flex items-center justify-between gap-2 rounded-lg py-2 px-2 -mx-2 hover:bg-white/5">
-                          <span className="min-w-0 flex-1 truncate text-sm text-white/90">{m.title}</span>
+                        <div key={e.event_ticker} className="flex items-center justify-between gap-2 rounded-lg py-2 px-2 -mx-2 hover:bg-white/5">
+                          <span className="min-w-0 flex-1 truncate text-sm text-white/90" title={displayTitle}>{displayTitle}</span>
                           <span className="shrink-0 text-sm font-medium text-white">{yesPercent(m)}%</span>
                           <span className="text-xs font-medium shrink-0" style={{ color: change >= 0 ? WAGYR_GREEN : "#f87171" }}>
                             {change >= 0 ? "▲" : "▼"} {Math.abs(change)}%
@@ -405,30 +419,34 @@ export default function Page() {
                     </CardContent>
                   </Card>
                 ))
-              : gridMarkets.map((m) => (
-                  <Card
-                    key={m.ticker}
-                    className="cursor-pointer border-0 transition-colors hover:opacity-95"
-                    style={{ background: WAGYR_CARD }}
-                  >
-                    <CardHeader className="pb-2">
-                      <CardDescription className="text-xs" style={{ color: WAGYR_MUTED }}>
-                        {themeFromSeries(m.series_ticker)} · Closes {formatClose(m.close_time)}
-                      </CardDescription>
-                      <CardTitle className="text-sm font-medium text-white line-clamp-2">{m.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-medium" style={{ color: WAGYR_GREEN }}>
-                          YES {yesPercent(m)}% · NO {noPercent(m)}%
-                        </span>
-                        <span className="text-xs" style={{ color: WAGYR_MUTED }}>
-                          {formatVol(volume(m))} vol
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              : slate.map((e) => {
+                  const m = getTopMarket(e)
+                  if (!m) return null
+                  return (
+                    <Card
+                      key={e.event_ticker}
+                      className="cursor-pointer border-0 transition-colors hover:opacity-95"
+                      style={{ background: WAGYR_CARD }}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardDescription className="text-xs" style={{ color: WAGYR_MUTED }}>
+                          {e.category || themeFromSeries(e.series_ticker)} · Closes {formatClose(m.close_time)}
+                        </CardDescription>
+                        <CardTitle className="text-sm font-medium text-white line-clamp-2" title={formatEventTitle(e, m)}>{formatEventTitle(e, m)}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-medium" style={{ color: WAGYR_GREEN }}>
+                            YES {yesPercent(m)}% · NO {noPercent(m)}%
+                          </span>
+                          <span className="text-xs" style={{ color: WAGYR_MUTED }}>
+                            {formatVol(getEventVolume(e))} vol
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
           </div>
         </section>
 

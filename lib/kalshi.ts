@@ -240,6 +240,15 @@ export type KalshiEvent = {
   markets?: KalshiMarket[]
 }
 
+/** Format the title for a UI card, appending the specific answer if the event represents a mutually exclusive question. */
+export function formatEventTitle(event: KalshiEvent, market?: KalshiMarket | null): string {
+  if (!market) return event.title
+  if (event.mutually_exclusive && market.yes_sub_title) {
+    return `${event.title} (${market.yes_sub_title})`
+  }
+  return event.title
+}
+
 export type KalshiEventsResponse = {
   events: KalshiEvent[]
   cursor: string
