@@ -301,6 +301,17 @@ export default function CategoryPage() {
     return 0
   })
 
+  const sortedMentionsEvents = [...mentionsEvents].sort((a, b) => {
+    if (activeTab === "trending") return b.total_volume - a.total_volume
+    if (activeTab === "new") {
+      return new Date(b.close_time).getTime() - new Date(a.close_time).getTime()
+    }
+    if (activeTab === "closing-soon") {
+      return new Date(a.close_time).getTime() - new Date(b.close_time).getTime()
+    }
+    return 0
+  })
+
   useEffect(() => {
     if (!isLiveCategory) return
     let cancelled = false
@@ -410,12 +421,12 @@ export default function CategoryPage() {
 
           {isLiveCategory && !loading && isMentions && (
             <div className="grid gap-4 sm:grid-cols-2">
-              {mentionsEvents.length === 0 ? (
+              {sortedMentionsEvents.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-white/60">
                   No open mentions markets right now. Check back later.
                 </p>
               ) : (
-                mentionsEvents.map((evt) => (
+                sortedMentionsEvents.map((evt) => (
                   <MentionsEventCard key={evt.event_ticker} evt={evt} />
                 ))
               )}
