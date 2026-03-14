@@ -147,12 +147,12 @@ export default function CategoryPage() {
   const [activeSubcategory, setActiveSubcategory] = useState("all")
   const [activeTab, setActiveTab] = useState<SortTab>("trending")
 
-  // Crypto uses our two-phase throttled fetch
-  const isCrypto = categoryId === "crypto"
-  // Financials and mentions use teammates' approach
+  // Categories with live Kalshi data via events route
+  const usesEventsRoute = categoryId === "crypto" || categoryId === "politics"
+  // Financials and mentions use teammates' markets route approach
   const isFinancialsOrMentions = categoryId === "financials" || categoryId === "mentions"
   const isMentions = categoryId === "mentions"
-  const isLive = isCrypto || isFinancialsOrMentions
+  const isLive = usesEventsRoute || isFinancialsOrMentions
   const getSubcategoryId = SUBCATEGORY_MAPPER[categoryId] ?? (() => "all")
 
   // Crypto state
@@ -167,7 +167,7 @@ export default function CategoryPage() {
 
   // Crypto fetch
   useEffect(() => {
-    if (!isCrypto) return
+    if (!usesEventsRoute) return
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -181,7 +181,7 @@ export default function CategoryPage() {
       .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load") })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [isCrypto, categoryId, activeSubcategory])
+  }, [usesEventsRoute, categoryId, activeSubcategory])
 
   // Financials/mentions fetch
   useEffect(() => {
@@ -290,13 +290,13 @@ export default function CategoryPage() {
           )}
 
           {/* ===== CRYPTO: Oddpool-style cards ===== */}
-          {isCrypto && !loading && events.length === 0 && !error && (
+          {usesEventsRoute && !loading && events.length === 0 && !error && (
             <div className="flex h-48 items-center justify-center rounded-lg" style={{ background: WAGYR_CARD }}>
               <p className="text-sm" style={{ color: WAGYR_MUTED }}>No open events found for this subcategory.</p>
             </div>
           )}
 
-          {isCrypto && !loading && events.length > 0 && (
+          {usesEventsRoute && !loading && events.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {events.map((e) => {
                 const markets = e.markets ?? []
