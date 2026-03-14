@@ -16,10 +16,19 @@ import {
 } from "@/lib/kalshi"
 import type { KalshiCategoryId } from "@/lib/kalshi"
 import type { KalshiMarket } from "@/lib/kalshi"
-import { yesPercent, noPercent, volume, volume24h, getFinancialsSubcategoryId } from "@/lib/kalshi"
+import { yesPercent, noPercent, volume, volume24h, getFinancialsSubcategoryId, getMentionsSubcategoryId } from "@/lib/kalshi"
 import { CircleNotch } from "@phosphor-icons/react"
 
-type FinancialsTab = "trending" | "new" | "closing-soon"
+type SortTab = "trending" | "new" | "closing-soon"
+
+/** Categories that fetch live Kalshi data instead of showing mocks. */
+const LIVE_CATEGORIES = new Set(["financials", "mentions"])
+
+/** Subcategory mapper per live category. */
+const SUBCATEGORY_MAPPER: Record<string, (m: KalshiMarket) => string> = {
+  financials: getFinancialsSubcategoryId,
+  mentions: getMentionsSubcategoryId,
+}
 
 const WAGYR_GREEN = "#00d4aa"
 const WAGYR_CARD = "#1e2337"
@@ -149,19 +158,20 @@ export default function CategoryPage() {
 
   const subcategories = KALSHI_SUBCATEGORIES[categoryId as Exclude<KalshiCategoryId, "home">]
   const [activeSubcategory, setActiveSubcategory] = useState("all")
-  const [activeTab, setActiveTab] = useState<FinancialsTab>("trending")
+  const [activeTab, setActiveTab] = useState<SortTab>("trending")
 
-  const isFinancials = categoryId === "financials"
+  const isLiveCategory = LIVE_CATEGORIES.has(categoryId)
+  const getSubcategoryId = SUBCATEGORY_MAPPER[categoryId] ?? (() => "all")
   const [kalshiMarkets, setKalshiMarkets] = useState<KalshiMarket[]>([])
-  const [loading, setLoading] = useState(isFinancials)
+  const [loading, setLoading] = useState(isLiveCategory)
   const [error, setError] = useState<string | null>(null)
 
-  const filteredFinancials =
-    !isFinancials || activeSubcategory === "all"
+  const filteredMarkets =
+    !isLiveCategory || activeSubcategory === "all"
       ? kalshiMarkets
-      : kalshiMarkets.filter((m) => getFinancialsSubcategoryId(m) === activeSubcategory)
+      : kalshiMarkets.filter((m) => getSubcategoryId(m) === activeSubcategory)
 
-  const sortedFinancials = [...filteredFinancials].sort((a, b) => {
+  const sortedMarkets = [...filteredMarkets].sort((a, b) => {
     if (activeTab === "trending") return volume24h(b) - volume24h(a) || volume(b) - volume(a)
     if (activeTab === "new") {
       const tA = a.open_time ? new Date(a.open_time).getTime() : 0
@@ -177,11 +187,11 @@ export default function CategoryPage() {
   })
 
   useEffect(() => {
-    if (!isFinancials) return
+    if (!isLiveCategory) return
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch("/api/kalshi/markets?category=financials&limit=50")
+    fetch(`/api/kalshi/markets?category=${categoryId}&limit=50`)
       .then((res) => {
         if (!res.ok) throw new Error(res.statusText)
         return res.json()
@@ -198,7 +208,7 @@ export default function CategoryPage() {
     return () => {
       cancelled = true
     }
-  }, [isFinancials])
+  }, [isLiveCategory, categoryId])
 
   const mockMarkets = getMockMarkets(categoryId, activeSubcategory)
 
@@ -207,8 +217,10 @@ export default function CategoryPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white">{category.label}</h1>
         <p className="mt-2 text-sm" style={{ color: WAGYR_MUTED }}>
-          {isFinancials
-            ? "Live Kalshi financials markets — S&P, Nasdaq, Treasuries, FX, and more. Use these for your league slate."
+          {isLiveCategory
+            ? categoryId === "financials"
+              ? "Live Kalshi financials markets — S&P, Nasdaq, Treasuries, FX, and more. Use these for your league slate."
+              : `Live Kalshi ${category.label.toLowerCase()} markets — will a person, topic, or brand get mentioned? Use these for your league slate.`
             : `Browse ${category.label.toLowerCase()} prediction markets. Pick a subcategory to focus your league.`}
         </p>
       </div>
@@ -240,13 +252,13 @@ export default function CategoryPage() {
         <div>
           <div className="mb-4 flex items-center gap-2">
             {(["trending", "new", "closing-soon"] as const).map((tab) => {
-              const isActive = isFinancials ? activeTab === tab : tab === "trending"
+              const isActive = isLiveCategory ? activeTab === tab : tab === "trending"
               return (
               <Button
                 key={tab}
                 variant="ghost"
                 size="sm"
-                onClick={() => isFinancials && setActiveTab(tab)}
+                onClick={() => isLiveCategory && setActiveTab(tab)}
                 className={
                   isActive
                     ? "text-[#171b2c]"
@@ -264,28 +276,28 @@ export default function CategoryPage() {
             })}
           </div>
 
-          {isFinancials && error && (
+          {isLiveCategory && error && (
             <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {error}
             </div>
           )}
 
-          {isFinancials && loading && (
+          {isLiveCategory && loading && (
             <div className="flex items-center justify-center py-16">
               <CircleNotch className="size-8 animate-spin" style={{ color: WAGYR_GREEN }} weight="bold" />
             </div>
           )}
 
-          {isFinancials && !loading && (
+          {isLiveCategory && !loading && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {sortedFinancials.length === 0 ? (
+              {sortedMarkets.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-white/60">
                   {kalshiMarkets.length === 0
-                    ? "No open financials markets right now. Check back later."
+                    ? `No open ${category.label.toLowerCase()} markets right now. Check back later.`
                     : `No markets in ${subcategories.find((s) => s.id === activeSubcategory)?.label ?? activeSubcategory}. Try another filter.`}
                 </p>
               ) : (
-                sortedFinancials.map((m) => (
+                sortedMarkets.map((m) => (
                   <Card
                     key={m.ticker}
                     className="cursor-pointer border-0 transition-colors hover:opacity-95"
@@ -332,7 +344,7 @@ export default function CategoryPage() {
             </div>
           )}
 
-          {!isFinancials && (
+          {!isLiveCategory && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {mockMarkets.map((m) => (
                 <Card

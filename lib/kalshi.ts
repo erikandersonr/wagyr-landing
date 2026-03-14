@@ -234,6 +234,21 @@ export function getFinancialsSubcategoryId(m: KalshiMarket): string {
   return "all"
 }
 
+/** Map a Mentions market to our sidebar subcategory id (for filtering). */
+export function getMentionsSubcategoryId(m: KalshiMarket): string {
+  const t = (m.title ?? "").toUpperCase()
+  const s = (m.series_ticker ?? m.event_ticker ?? "").toUpperCase()
+  // Sports-related mentions
+  if (/NFL|NBA|MLB|NHL|MLS|NCAA|UFC|FIFA|ESPN|SPORT|COACH|PLAYER|TEAM|GAME|MATCH/.test(t) || /SPORT/.test(s)) return "sports"
+  // Politicians / political figures
+  if (/CONGRESS|SENATOR|PRESIDENT|GOVERNOR|POLITIC|HOUSE REP|CABINET|STATE OF THE UNION|SOTU|TRUMP|BIDEN|WHITE HOUSE/.test(t) || /POLITIC/.test(s)) return "politicians"
+  // Earnings / financial mentions
+  if (/EARNING|REVENUE|QUARTERLY|FISCAL|IPO|STOCK|SHARE|MARKET CAP|VALUATION|GUIDANCE/.test(t) || /EARNING/.test(s)) return "earnings"
+  // Entertainment
+  if (/MOVIE|FILM|ALBUM|SONG|GRAMMY|OSCAR|EMMY|BILLBOARD|STREAM|CONCERT|CELEB|ENTERTAIN|TV SHOW|SERIES|NETFLIX|SPOTIFY/.test(t) || /ENTERTAIN/.test(s)) return "entertainment"
+  return "all"
+}
+
 export async function fetchKalshiMarkets(params: {
   status?: string
   limit?: number
@@ -247,7 +262,7 @@ export async function fetchKalshiMarkets(params: {
   if (params.mve_filter) searchParams.set("mve_filter", params.mve_filter)
 
   const url = `${KALSHI_API}/markets?${searchParams.toString()}`
-  const res = await fetch(url, { next: { revalidate: 60 } })
+  const res = await fetch(url, { cache: "no-store" })
   if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
   return res.json() as Promise<KalshiMarketsResponse>
 }
@@ -267,7 +282,7 @@ export async function fetchKalshiEvents(params: {
   if (params.with_nested_markets) searchParams.set("with_nested_markets", "true")
 
   const url = `${KALSHI_API}/events?${searchParams.toString()}`
-  const res = await fetch(url, { next: { revalidate: 60 } })
+  const res = await fetch(url, { cache: "no-store" })
   if (!res.ok) throw new Error(`Kalshi API error: ${res.status}`)
   return res.json() as Promise<KalshiEventsResponse>
 }
@@ -279,9 +294,9 @@ export async function fetchKalshiMarketsByCategory(params: {
   limit?: number
   minMarkets?: number
 }): Promise<{ markets: KalshiMarket[] }> {
-  const pageLimit = 200
+  const pageLimit = 50
   const minMarkets = params.minMarkets ?? 24
-  const maxPages = 10
+  const maxPages = 3
   const markets: KalshiMarket[] = []
   let cursor: string | undefined
 
@@ -295,7 +310,6 @@ export async function fetchKalshiMarketsByCategory(params: {
     })
 
     for (const event of data.events ?? []) {
-      if (event.category !== params.category) continue
       for (const m of event.markets ?? []) {
         if (m.status !== "active") continue
         markets.push({

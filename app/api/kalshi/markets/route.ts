@@ -7,6 +7,7 @@ export const revalidate = 0
 /** Map app category id (e.g. financials) to Kalshi API category (e.g. Financials). */
 const CATEGORY_MAP: Record<string, string> = {
   financials: "Financials",
+  mentions: "Mentions",
 }
 
 export async function GET(request: Request) {
