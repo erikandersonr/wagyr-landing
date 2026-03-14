@@ -148,7 +148,7 @@ export default function CategoryPage() {
   const [activeTab, setActiveTab] = useState<SortTab>("trending")
 
   // Categories with live Kalshi data via events route
-  const usesEventsRoute = categoryId === "crypto" || categoryId === "politics"
+  const usesEventsRoute = categoryId === "crypto" || categoryId === "politics" || categoryId === "sports" || categoryId === "culture" || categoryId === "climate" || categoryId === "economics" || categoryId === "companies"
   // Financials and mentions use teammates' markets route approach
   const isFinancialsOrMentions = categoryId === "financials" || categoryId === "mentions"
   const isMentions = categoryId === "mentions"
