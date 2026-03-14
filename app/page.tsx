@@ -100,13 +100,13 @@ export default function Page() {
             <Button
               variant="outline"
               size="sm"
-              className="border-white/20 text-white hover:bg-white/10"
+              className="border-white/20 text-foreground hover:bg-white/70"
             >
               Log in
             </Button>
             <Button
               size="sm"
-              className="font-medium text-[#171b2c] hover:opacity-90"
+              className="font-medium text-[#171b2c] hover:opacity-80"
               style={{ background: WAGYR_GREEN }}
             >
               Sign up
@@ -123,7 +123,7 @@ export default function Page() {
               key={cat}
               variant="ghost"
               size="sm"
-              className={`shrink-0 rounded-full px-4 ${
+              className={`shrink-0 rounded-lg px-4 ${
                 cat === "Trending"
                   ? "text-[#171b2c]"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
@@ -266,7 +266,7 @@ export default function Page() {
             </Card>
             <Button
               variant="outline"
-              className="w-full border-white/20 text-white hover:bg-white/10"
+              className="w-full border-white/20 text-foreground hover:bg-white/10"
             >
               Explore all
             </Button>
