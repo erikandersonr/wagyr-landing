@@ -131,7 +131,7 @@ export default function Page() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <Button
               size="lg"
-              className="font-semibold text-[#171b2c] hover:opacity-90"
+              className="font-semibold text-[#171b2c] hover:opacity-80"
               style={{ background: WAGYR_GREEN }}
             >
               Create or join a league

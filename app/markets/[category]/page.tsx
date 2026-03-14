@@ -16,8 +16,10 @@ import {
 } from "@/lib/kalshi"
 import type { KalshiCategoryId } from "@/lib/kalshi"
 import type { KalshiMarket } from "@/lib/kalshi"
-import { yesPercent, noPercent, volume } from "@/lib/kalshi"
+import { yesPercent, noPercent, volume, volume24h, getFinancialsSubcategoryId } from "@/lib/kalshi"
 import { CircleNotch } from "@phosphor-icons/react"
+
+type FinancialsTab = "trending" | "new" | "closing-soon"
 
 const WAGYR_GREEN = "#00d4aa"
 const WAGYR_CARD = "#1e2337"
@@ -30,9 +32,11 @@ function formatVol(v: number): string {
   return `$${Math.round(v)}`
 }
 
-function formatClose(closeTime: string): string {
+function formatClose(closeTime: string | undefined): string {
+  if (!closeTime) return "—"
   try {
     const d = new Date(closeTime)
+    if (Number.isNaN(d.getTime())) return "—"
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   } catch {
     return "—"
@@ -145,11 +149,32 @@ export default function CategoryPage() {
 
   const subcategories = KALSHI_SUBCATEGORIES[categoryId as Exclude<KalshiCategoryId, "home">]
   const [activeSubcategory, setActiveSubcategory] = useState("all")
+  const [activeTab, setActiveTab] = useState<FinancialsTab>("trending")
 
   const isFinancials = categoryId === "financials"
   const [kalshiMarkets, setKalshiMarkets] = useState<KalshiMarket[]>([])
   const [loading, setLoading] = useState(isFinancials)
   const [error, setError] = useState<string | null>(null)
+
+  const filteredFinancials =
+    !isFinancials || activeSubcategory === "all"
+      ? kalshiMarkets
+      : kalshiMarkets.filter((m) => getFinancialsSubcategoryId(m) === activeSubcategory)
+
+  const sortedFinancials = [...filteredFinancials].sort((a, b) => {
+    if (activeTab === "trending") return volume24h(b) - volume24h(a) || volume(b) - volume(a)
+    if (activeTab === "new") {
+      const tA = a.open_time ? new Date(a.open_time).getTime() : 0
+      const tB = b.open_time ? new Date(b.open_time).getTime() : 0
+      return tB - tA
+    }
+    if (activeTab === "closing-soon") {
+      const tA = new Date(a.close_time).getTime()
+      const tB = new Date(b.close_time).getTime()
+      return tA - tB
+    }
+    return 0
+  })
 
   useEffect(() => {
     if (!isFinancials) return
@@ -214,28 +239,29 @@ export default function CategoryPage() {
 
         <div>
           <div className="mb-4 flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-[#171b2c]"
-              style={{ background: WAGYR_GREEN }}
-            >
-              Trending
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white/70 hover:bg-white/10 hover:text-white"
-            >
-              New
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white/70 hover:bg-white/10 hover:text-white"
-            >
-              Closing soon
-            </Button>
+            {(["trending", "new", "closing-soon"] as const).map((tab) => {
+              const isActive = isFinancials ? activeTab === tab : tab === "trending"
+              return (
+              <Button
+                key={tab}
+                variant="ghost"
+                size="sm"
+                onClick={() => isFinancials && setActiveTab(tab)}
+                className={
+                  isActive
+                    ? "text-[#171b2c]"
+                    : "text-white/70 hover:bg-white/10 hover:text-white"
+                }
+                style={isActive ? { background: WAGYR_GREEN } : undefined}
+              >
+                {tab === "trending"
+                  ? "Trending"
+                  : tab === "new"
+                    ? "New"
+                    : "Closing soon"}
+              </Button>
+              )
+            })}
           </div>
 
           {isFinancials && error && (
@@ -252,12 +278,14 @@ export default function CategoryPage() {
 
           {isFinancials && !loading && (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {kalshiMarkets.length === 0 ? (
+              {sortedFinancials.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-white/60">
-                  No open financials markets right now. Check back later.
+                  {kalshiMarkets.length === 0
+                    ? "No open financials markets right now. Check back later."
+                    : `No markets in ${subcategories.find((s) => s.id === activeSubcategory)?.label ?? activeSubcategory}. Try another filter.`}
                 </p>
               ) : (
-                kalshiMarkets.map((m) => (
+                sortedFinancials.map((m) => (
                   <Card
                     key={m.ticker}
                     className="cursor-pointer border-0 transition-colors hover:opacity-95"

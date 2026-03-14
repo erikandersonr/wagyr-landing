@@ -153,6 +153,7 @@ export type KalshiMarket = {
   volume_fp: string
   volume_24h_fp: string
   close_time: string
+  open_time?: string
   series_ticker?: string
 }
 
@@ -219,6 +220,20 @@ export function themeFromSeries(seriesTicker: string | undefined): string {
   return "Markets"
 }
 
+/** Map a Financials market to our sidebar subcategory id (for filtering). */
+export function getFinancialsSubcategoryId(m: KalshiMarket): string {
+  const s = (m.series_ticker ?? m.event_ticker ?? "").toUpperCase()
+  if (/KXSP|^SP|S&P/.test(s)) return "sp"
+  if (/NASDAQ|NDX|KXNDX/.test(s)) return "nasdaq"
+  if (/DAILY|DILY/.test(s)) return "daily"
+  if (/TREASURY|TNOTE|TBOND|KXT/.test(s)) return "treasuries"
+  if (/GOLD|SILVER|METAL|KXGOLD|KXAG/.test(s)) return "metals"
+  if (/WTI|CRUDE|KXCL|KXWTI/.test(s)) return "wti"
+  if (/EURUSD|EUR\/USD|EURUS|KXEUR/.test(s)) return "eur-usd"
+  if (/USDJPY|USD\/JPY|USDJP|KXUSDJP|KXJPY/.test(s)) return "usd-jpy"
+  return "all"
+}
+
 export async function fetchKalshiMarkets(params: {
   status?: string
   limit?: number
@@ -257,28 +272,42 @@ export async function fetchKalshiEvents(params: {
   return res.json() as Promise<KalshiEventsResponse>
 }
 
-/** Fetch markets for a given Kalshi category (e.g. Financials) by loading events and flattening nested markets. */
+/** Fetch markets for a given Kalshi category (e.g. Financials) by loading events and flattening nested markets. Paginates until we have enough or run out. */
 export async function fetchKalshiMarketsByCategory(params: {
   category: string
   status?: string
   limit?: number
+  minMarkets?: number
 }): Promise<{ markets: KalshiMarket[] }> {
-  const limit = params.limit ?? 100
-  const data = await fetchKalshiEvents({
-    status: params.status ?? "open",
-    limit,
-    category: params.category,
-    with_nested_markets: true,
-  })
+  const pageLimit = 200
+  const minMarkets = params.minMarkets ?? 24
+  const maxPages = 10
   const markets: KalshiMarket[] = []
-  for (const event of data.events ?? []) {
-    if (event.category !== params.category) continue
-    for (const m of event.markets ?? []) {
-      markets.push({
-        ...m,
-        series_ticker: event.series_ticker,
-      } as KalshiMarket)
+  let cursor: string | undefined
+
+  for (let page = 0; page < maxPages; page++) {
+    const data = await fetchKalshiEvents({
+      status: params.status ?? "open",
+      limit: pageLimit,
+      cursor,
+      category: params.category,
+      with_nested_markets: true,
+    })
+
+    for (const event of data.events ?? []) {
+      if (event.category !== params.category) continue
+      for (const m of event.markets ?? []) {
+        if (m.status !== "active") continue
+        markets.push({
+          ...m,
+          series_ticker: event.series_ticker,
+        } as KalshiMarket)
+      }
     }
+
+    if (markets.length >= minMarkets || !data.cursor) break
+    cursor = data.cursor
   }
+
   return { markets }
 }
